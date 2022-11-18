@@ -9,10 +9,15 @@ package com.powsybl.iidm.xml;
 import com.powsybl.iidm.network.Network;
 import com.powsybl.iidm.network.TopologyKind;
 import com.powsybl.iidm.network.TopologyLevel;
+import com.powsybl.iidm.network.TwoWindingsTransformer;
+import com.powsybl.iidm.network.test.EurostagTutorialExample1Factory;
 import com.powsybl.iidm.network.test.FictitiousSwitchFactory;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 
 import static com.powsybl.iidm.xml.IidmXmlConstants.CURRENT_IIDM_XML_VERSION;
@@ -73,5 +78,29 @@ public class TopologyLevelTest extends AbstractXmlConverterTest {
                 .setTopologyLevel(TopologyLevel.BUS_BRANCH);
 
         NetworkXml.write(network, options, path);
+    }
+
+    @Test
+    public void testUnconnectableElement() throws IOException {
+
+        Network network = EurostagTutorialExample1Factory.createWithFixedCurrentLimits();
+
+        //Disconnecting the generator GEN by disconnecting its transformer
+        TwoWindingsTransformer stepUpTransfo = network.getTwoWindingsTransformer("NGEN_NHV1");
+        stepUpTransfo.getTerminal1().disconnect();
+        stepUpTransfo.getTerminal2().disconnect();
+
+        ExportOptions options = new ExportOptions()
+                .setTopologyLevel(TopologyLevel.BUS_BRANCH);
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        NetworkXml.write(network, options, os);
+        os.close();
+
+        byte[] asBytes = os.toByteArray();
+        try (InputStream is = new ByteArrayInputStream(asBytes)) {
+            // Throws with
+            Network parsed = NetworkXml.read(is);
+        }
     }
 }
