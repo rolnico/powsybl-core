@@ -14,11 +14,9 @@ import com.powsybl.iidm.network.test.EurostagTutorialExample1Factory;
 import com.powsybl.iidm.network.test.FictitiousSwitchFactory;
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 import static com.powsybl.iidm.xml.IidmXmlConstants.CURRENT_IIDM_XML_VERSION;
 import static org.junit.Assert.assertEquals;
@@ -81,26 +79,36 @@ public class TopologyLevelTest extends AbstractXmlConverterTest {
     }
 
     @Test
-    public void testUnconnectableElement() throws IOException {
+    public void testUnconnectableElementSerialization() throws IOException {
 
-        Network network = EurostagTutorialExample1Factory.createWithFixedCurrentLimits();
+        Network network = EurostagTutorialExample1Factory.create();
 
         //Disconnecting the generator GEN by disconnecting its transformer
         TwoWindingsTransformer stepUpTransfo = network.getTwoWindingsTransformer("NGEN_NHV1");
         stepUpTransfo.getTerminal1().disconnect();
         stepUpTransfo.getTerminal2().disconnect();
 
+        network.getGenerator("GEN")
+                .getTerminal().disconnect();
+
         ExportOptions options = new ExportOptions()
                 .setTopologyLevel(TopologyLevel.BUS_BRANCH);
+        // TODO: For debug purpose, remove before merge
+        NetworkXml.write(network, options, System.out);
 
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-        NetworkXml.write(network, options, os);
-        os.close();
-
-        byte[] asBytes = os.toByteArray();
-        try (InputStream is = new ByteArrayInputStream(asBytes)) {
+        byte[] networkXmlBytes = toBytes(os -> NetworkXml.write(network, options, os));
+        try (InputStream is = new ByteArrayInputStream(networkXmlBytes)) {
             // Throws with
-            Network parsed = NetworkXml.read(is);
+            // com.powsybl.iidm.network.ValidationException: Generator 'GEN': connectable bus is not set
+            NetworkXml.read(is);
+        }
+    }
+
+    private static byte[] toBytes(Consumer<OutputStream> generator) throws IOException {
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            generator.accept(os);
+            os.close();
+            return os.toByteArray();
         }
     }
 }
